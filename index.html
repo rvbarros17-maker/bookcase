@@ -663,27 +663,28 @@ function login() {
 }
 function logout() { if(auth) auth.signOut(); }
 
-// Após redirect de volta, recupera a sessão pendente
+// Após redirect de volta, recupera a sessão pendente, depois ativa o listener
 if (auth) {
   auth.getRedirectResult().then(result => {
-    if (result.user) console.log("✅ Login via redirect bem-sucedido:", result.user.email);
+    if (result && result.user) console.log("✅ Login via redirect bem-sucedido:", result.user.email);
   }).catch(e => {
     console.error("❌ Erro no getRedirectResult:", e.code, e.message);
+  }).finally(() => {
+    // Só após resolver o redirect, ativa o listener de estado
+    auth.onAuthStateChanged(user => {
+      document.getElementById("loading-screen").style.display = "none";
+      if (user) {
+        document.getElementById("auth-screen").style.display  = "none";
+        document.getElementById("app").style.display          = "block";
+        loadData(user.uid);
+      } else {
+        document.getElementById("auth-screen").style.display  = "flex";
+        document.getElementById("app").style.display          = "none";
+        books = []; goals = { monthly:2, annual:12 };
+      }
+    });
   });
 }
-
-auth && auth.onAuthStateChanged(user => {
-  document.getElementById("loading-screen").style.display = "none";
-  if (user) {
-    document.getElementById("auth-screen").style.display  = "none";
-    document.getElementById("app").style.display          = "block";
-    loadData(user.uid);
-  } else {
-    document.getElementById("auth-screen").style.display  = "flex";
-    document.getElementById("app").style.display          = "none";
-    books = []; goals = { monthly:2, annual:12 };
-  }
-});
 
 // ─── FIRESTORE ────────────────────────────────────────────────────────────
 let currentUid = null;
