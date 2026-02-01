@@ -966,6 +966,10 @@ async function saveBook() {
   const author = document.getElementById("f-author").value.trim();
   if (!title || !author) return;
 
+  // pega o rating corretamente — conta quantas estrelas têm classe "filled"
+  const filledStars = document.querySelectorAll(".form-star.filled");
+  const rating = filledStars.length || 0;
+
   const book = {
     title,
     author,
@@ -973,14 +977,19 @@ async function saveBook() {
     description:   document.getElementById("f-desc").value.trim(),
     format:        document.querySelector(".pill.active-accent[data-type='format']")?.dataset.value || "fisico",
     status:        document.querySelector(".pill.active-accent[data-type='status']")?.dataset.value || "queue",
-    rating:        parseInt(document.querySelector(".form-star.filled:last-of-type")?.dataset.n || "0") || 0,
+    rating,
     startDate:     document.getElementById("f-start").value || null,
     endDate:       document.getElementById("f-end").value   || null,
     cover:         formCover,
   };
 
-  await persistBook(book);
-  closeBookModal();
+  try {
+    await persistBook(book);
+    closeBookModal();
+  } catch(e) {
+    console.error("❌ Erro ao salvar livro:", e);
+    alert("Erro ao salvar:\n" + e.message);
+  }
 }
 
 // ─── FORMAT / STATUS PILLS ────────────────────────────────────────────────
