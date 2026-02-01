@@ -649,40 +649,49 @@ const MONTHS_PT = ["janeiro","fevereiro","março","abril","maio","junho","julho"
 // ─── AUTH ─────────────────────────────────────────────────────────────────
 function login() {
   if (!auth || !provider) {
-    alert("Firebase não conectou. Verifique as credenciais no console do navegador (F12).");
+    alert("Firebase não conectou.");
     return;
   }
-  console.log("🔄 Iniciando login com Google...");
-  auth.signInWithRedirect(provider)
-    .then(() => console.log("✅ Redirect iniciado"))
+  auth.signInWithPopup(provider)
+    .then(result => {
+      console.log("✅ Login bem-sucedido:", result.user.email);
+    })
     .catch(e => {
       console.error("❌ Erro no login:", e.code, e.message);
-      alert("Erro no login:\n\n" + e.code + "\n" + e.message +
-        "\n\nSe você está abrindo o arquivo direto no navegador (file://), isso não vai funcionar.\nPrecisa estar hospedado num servidor (ex: Vercel).");
-    });
-}
-function logout() { if(auth) auth.signOut(); }
-
-// Após redirect de volta, recupera a sessão pendente, depois ativa o listener
-if (auth) {
-  auth.getRedirectResult().then(result => {
-    if (result && result.user) console.log("✅ Login via redirect bem-sucedido:", result.user.email);
-  }).catch(e => {
-    console.error("❌ Erro no getRedirectResult:", e.code, e.message);
-  }).finally(() => {
-    // Só após resolver o redirect, ativa o listener de estado
-    auth.onAuthStateChanged(user => {
-      document.getElementById("loading-screen").style.display = "none";
-      if (user) {
-        document.getElementById("auth-screen").style.display  = "none";
-        document.getElementById("app").style.display          = "block";
-        loadData(user.uid);
+      // Se o popup foi bloqueado, tenta redirect como fallback
+      if (e.code === "auth/popup-blocked") {
+        console.log("Popup bloqueado, tentando redirect...");
+        auth.signInWithRedirect(provider);
       } else {
-        document.getElementById("auth-screen").style.display  = "flex";
-        document.getElementById("app").style.display          = "none";
-        books = []; goals = { monthly:2, annual:12 };
+        alert("Erro no login:\n" + e.code + "\n" + e.message);
       }
     });
+}
+
+function logout() {
+  if (auth) auth.signOut().then(() => { books = []; goals = { monthly:2, annual:12 }; });
+}
+
+// Trata retorno de redirect (caso tenha usado fallback)
+if (auth) {
+  auth.getRedirectResult().catch(() => {});
+}
+
+// Listener principal de estado de autenticação
+if (auth) {
+  auth.onAuthStateChanged(user => {
+    document.getElementById("loading-screen").style.display = "none";
+    if (user) {
+      console.log("👤 Usuário logado:", user.email);
+      document.getElementById("auth-screen").style.display  = "none";
+      document.getElementById("app").style.display          = "block";
+      loadData(user.uid);
+    } else {
+      console.log("👤 Sem usuário logado");
+      document.getElementById("auth-screen").style.display  = "flex";
+      document.getElementById("app").style.display          = "none";
+      books = []; goals = { monthly:2, annual:12 };
+    }
   });
 }
 
