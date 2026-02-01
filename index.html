@@ -962,11 +962,12 @@ function closeBookModal() {
 }
 
 async function saveBook() {
+  console.log("🔄 saveBook iniciado");
   const title  = document.getElementById("f-title").value.trim();
   const author = document.getElementById("f-author").value.trim();
-  if (!title || !author) return;
+  console.log("📝 title:", JSON.stringify(title), "author:", JSON.stringify(author));
+  if (!title || !author) { console.warn("⚠️ title ou author vazio — retornando"); return; }
 
-  // pega o rating corretamente — conta quantas estrelas têm classe "filled"
   const filledStars = document.querySelectorAll(".form-star.filled");
   const rating = filledStars.length || 0;
 
@@ -980,15 +981,24 @@ async function saveBook() {
     rating,
     startDate:     document.getElementById("f-start").value || null,
     endDate:       document.getElementById("f-end").value   || null,
-    cover:         formCover,
+    cover:         formCover ? formCover.substring(0,30)+"..." : null,
   };
 
+  console.log("📚 book object:", book);
+  console.log("📏 cover tamanho:", formCover ? formCover.length : 0, "chars");
+  console.log("🆔 currentUid:", currentUid, "editingId:", editingId);
+
+  // Monta o objeto real com a cover completa pra salvar
+  const bookReal = { ...book, cover: formCover };
+
   try {
-    await persistBook(book);
+    console.log("💾 chamando persistBook...");
+    await persistBook(bookReal);
+    console.log("✅ persistBook resolveu!");
     closeBookModal();
   } catch(e) {
-    console.error("❌ Erro ao salvar livro:", e);
-    alert("Erro ao salvar:\n" + e.message);
+    console.error("❌ Erro ao salvar livro:", e.code, e.message, e);
+    alert("Erro ao salvar:\n" + (e.code||"") + "\n" + e.message);
   }
 }
 
