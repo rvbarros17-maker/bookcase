@@ -1158,7 +1158,13 @@ function closeGoalModal() {
 async function saveGoals() {
   goals.monthly = Math.max(0, parseInt(document.getElementById("g-monthly").value)||0);
   goals.annual  = Math.max(0, parseInt(document.getElementById("g-annual").value)||0);
-  await persistGoals();
+  console.log("💾 salvando metas:", goals);
+  persistGoals().then(() => {
+    console.log("✅ metas salvas");
+  }).catch(e => {
+    console.error("❌ erro ao salvar metas:", e.code, e.message);
+    alert("Erro ao salvar metas:\n" + e.message);
+  });
   closeGoalModal();
   render();
 }
