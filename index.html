@@ -698,55 +698,130 @@ if (auth) {
 
 // ─── FIRESTORE ────────────────────────────────────────────────────────────
 let currentUid = null;
-let unsubBooks = null;
+let currentToken = null;
 
-function booksCol(uid) { return db.collection("users").doc(uid).collection("biblioteca"); }
-function goalsDoc(uid) { return db.collection("users").doc(uid).doc("goals"); }
+const PROJECT_ID = "bookcase-ef6ec";
+const FS_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
+// ─── REST helpers ─────────────────────────────────────────────────────────
+async function getToken() {
+  if (!currentToken) currentToken = await auth.currentUser.getIdToken(true);
+  return currentToken;
+}
+
+async function fsGet(path) {
+  const r = await fetch(`${FS_BASE}/${path}`, { headers: { Authorization: "Bearer " + await getToken() } });
+  if (!r.ok) { if (r.status === 404) return null; throw new Error("GET " + r.status); }
+  return await r.json();
+}
+
+async function fsSet(path, fields) {
+  const body = { fields: toFS(fields) };
+  const r = await fetch(`${FS_BASE}/${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + await getToken() },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error("SET " + r.status + " " + await r.text());
+  return await r.json();
+}
+
+async function fsDelete(path) {
+  const r = await fetch(`${FS_BASE}/${path}`, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + await getToken() }
+  });
+  if (!r.ok) throw new Error("DELETE " + r.status);
+}
+
+async function fsList(path) {
+  const r = await fetch(`${FS_BASE}/${path}?orderBy=createdAt&order=DESCENDING`, { headers: { Authorization: "Bearer " + await getToken() } });
+  if (!r.ok) return [];
+  const data = await r.json();
+  return data.documents || [];
+}
+
+// Converte JS object → Firestore fields format
+function toFS(obj) {
+  const fields = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) { fields[k] = { nullValue: null }; }
+    else if (typeof v === "number")    { fields[k] = { integerValue: String(v) }; }
+    else if (typeof v === "boolean")   { fields[k] = { booleanValue: v }; }
+    else                               { fields[k] = { stringValue: String(v) }; }
+  }
+  return fields;
+}
+
+// Converte Firestore fields format → JS object
+function fromFS(doc) {
+  if (!doc || !doc.fields) return {};
+  const obj = {};
+  for (const [k, v] of Object.entries(doc.fields)) {
+    if (v.stringValue  !== undefined) obj[k] = v.stringValue;
+    else if (v.integerValue !== undefined) obj[k] = parseInt(v.integerValue);
+    else if (v.booleanValue !== undefined) obj[k] = v.booleanValue;
+    else if (v.nullValue !== undefined)    obj[k] = null;
+    else obj[k] = v.stringValue || null;
+  }
+  return obj;
+}
+
+function docId(doc) { return doc.name.split("/").pop(); }
+
+// ─── PATHS ────────────────────────────────────────────────────────────────
+function booksPath(uid)      { return `users/${uid}/biblioteca`; }
+function bookPath(uid, id)   { return `users/${uid}/biblioteca/${id}`; }
+function goalsPath(uid)      { return `users/${uid}/config/goals`; }
+
+// ─── APP LOGIC ────────────────────────────────────────────────────────────
 async function loadData(uid) {
   currentUid = uid;
+  currentToken = await auth.currentUser.getIdToken(true);
   console.log("📥 loadData uid:", uid);
 
   // load goals
   try {
-    const snap = await goalsDoc(uid).get();
-    if (snap.exists) goals = snap.data();
-    console.log("✅ goals carregados:", goals);
-  } catch(e) { console.error("❌ erro ao carregar goals:", e.code, e.message); }
+    const doc = await fsGet(goalsPath(uid));
+    if (doc) { goals = fromFS(doc); console.log("✅ goals:", goals); }
+  } catch(e) { console.error("❌ goals:", e.message); }
 
-  // real-time listener for books
-  if (unsubBooks) unsubBooks();
-  unsubBooks = booksCol(uid).orderBy("createdAt","desc").onSnapshot(
-    snap => {
-      console.log("📚 snapshot recebido, docs:", snap.docs.length);
-      books = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      render();
-    },
-    err => {
-      console.error("❌ erro no onSnapshot:", err.code, err.message);
-    }
-  );
+  // load books
+  try {
+    const docs = await fsList(booksPath(uid));
+    books = docs.map(d => ({ id: docId(d), ...fromFS(d) }));
+    console.log("📚 livros carregados:", books.length);
+  } catch(e) { console.error("❌ livros:", e.message); }
+
   render();
 }
 
 async function persistBook(book) {
   const { id, ...data } = book;
   if (editingId) {
-    // update
-    await booksCol(currentUid).doc(editingId).update(data);
+    await fsSet(bookPath(currentUid, editingId), data);
   } else {
-    // create
-    await booksCol(currentUid).add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    // Gera um ID único
+    const newId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    data.createdAt = new Date().toISOString();
+    await fsSet(bookPath(currentUid, newId), data);
   }
+  // Recarrega a lista após salvar
+  const docs = await fsList(booksPath(currentUid));
+  books = docs.map(d => ({ id: docId(d), ...fromFS(d) }));
+  render();
 }
 
 async function deleteBook(id) {
-  await booksCol(currentUid).doc(id).delete();
+  await fsDelete(bookPath(currentUid, id));
+  books = books.filter(b => b.id !== id);
+  render();
 }
 
 async function persistGoals() {
-  await goalsDoc(currentUid).set(goals, { merge: true });
+  await fsSet(goalsPath(currentUid), goals);
 }
+
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 function formatDate(d) {
