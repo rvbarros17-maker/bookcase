@@ -1015,15 +1015,16 @@ async function saveBook() {
   // Monta o objeto real com a cover completa pra salvar
   const bookReal = { ...book, cover: formCover };
 
-  try {
-    console.log("💾 chamando persistBook...");
-    await persistBook(bookReal);
+  console.log("💾 chamando persistBook...");
+  persistBook(bookReal).then(() => {
     console.log("✅ persistBook resolveu!");
-    closeBookModal();
-  } catch(e) {
+  }).catch(e => {
     console.error("❌ Erro ao salvar livro:", e.code, e.message, e);
     alert("Erro ao salvar:\n" + (e.code||"") + "\n" + e.message);
-  }
+  });
+  
+  // Fecha o modal imediatamente - o onSnapshot vai atualizar a lista quando o Firestore confirmar
+  closeBookModal();
 }
 
 // ─── FORMAT / STATUS PILLS ────────────────────────────────────────────────
