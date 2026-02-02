@@ -454,6 +454,8 @@ try {
   firebase.initializeApp(firebaseConfig);
   auth     = firebase.auth();
   db       = firebase.firestore();
+  // Desativa persistência pra não usar dados/permissões em cache
+  db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
   provider = new firebase.auth.GoogleAuthProvider();
   firebaseOk = true;
 } catch(e) {
