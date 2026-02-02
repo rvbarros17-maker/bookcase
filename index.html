@@ -981,8 +981,13 @@ function openBookModal(id) {
 }
 
 function closeBookModal() {
-  document.getElementById("book-modal").classList.remove("open");
+  console.log("🚪 FECHANDO MODAL - closeBookModal chamado");
+  const modal = document.getElementById("book-modal");
+  console.log("📋 classList ANTES:", modal.classList.toString());
+  modal.classList.remove("open");
+  console.log("📋 classList DEPOIS:", modal.classList.toString());
   editingId = null; formCover = null;
+  console.log("✅ Modal fechado completamente");
 }
 
 async function saveBook() {
@@ -1024,7 +1029,9 @@ async function saveBook() {
   });
   
   // Fecha o modal imediatamente - o onSnapshot vai atualizar a lista quando o Firestore confirmar
+  console.log("🎯 PRESTES A FECHAR MODAL");
   closeBookModal();
+  console.log("🎯 closeBookModal JÁ FOI CHAMADO");
 }
 
 // ─── FORMAT / STATUS PILLS ────────────────────────────────────────────────
