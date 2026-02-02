@@ -454,12 +454,10 @@ try {
   firebase.initializeApp(firebaseConfig);
   auth     = firebase.auth();
   db       = firebase.firestore();
-  // Desativa persistência pra não usar dados/permissões em cache
-  db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
   provider = new firebase.auth.GoogleAuthProvider();
   firebaseOk = true;
 } catch(e) {
-  console.warn("Firebase não inicializado — coloque suas credenciais no firebaseConfig.");
+  console.warn("Firebase não inicializado:", e);
 }
 
 // Se Firebase não conectou, mostra tela de login logo de cara
@@ -707,19 +705,28 @@ function goalsDoc(uid) { return db.collection("users").doc(uid).doc("goals"); }
 
 async function loadData(uid) {
   currentUid = uid;
+  console.log("📥 loadData uid:", uid);
 
   // load goals
   try {
     const snap = await goalsDoc(uid).get();
     if (snap.exists) goals = snap.data();
-  } catch(e) {}
+    console.log("✅ goals carregados:", goals);
+  } catch(e) { console.error("❌ erro ao carregar goals:", e.code, e.message); }
 
   // real-time listener for books
   if (unsubBooks) unsubBooks();
-  unsubBooks = booksCol(uid).orderBy("createdAt","desc").onSnapshot(snap => {
-    books = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    render();
-  });
+  unsubBooks = booksCol(uid).orderBy("createdAt","desc").onSnapshot(
+    snap => {
+      console.log("📚 snapshot recebido, docs:", snap.docs.length);
+      books = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    },
+    err => {
+      console.error("❌ erro no onSnapshot:", err.code, err.message);
+    }
+  );
+  render();
 }
 
 async function persistBook(book) {
