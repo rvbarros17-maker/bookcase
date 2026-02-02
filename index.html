@@ -700,6 +700,7 @@ if (auth) {
 // ─── FIRESTORE ────────────────────────────────────────────────────────────
 let currentUid = null;
 let unsubBooks = null;
+let unsubGoals = null;
 
 function booksCol(uid) { return db.collection("users").doc(uid).collection("biblioteca"); }
 function goalsDoc(uid) { return db.collection("users").doc(uid).collection("config").doc("goals"); }
@@ -714,14 +715,20 @@ async function loadData(uid) {
   console.log("📍 db ref goals:", goalsDoc(uid).path);
   console.log("📍 db ref books:", booksCol(uid).path);
 
-  // load goals
-  try {
-    const snap = await goalsDoc(uid).get();
-    if (snap.exists) { goals = snap.data(); console.log("✅ goals:", goals); }
-    else console.log("ℹ️ goals doc não existe ainda");
-  } catch(e) { console.error("❌ goals erro completo:", JSON.stringify({code: e.code, message: e.message})); }
+  // real-time listener for goals
+  if (unsubGoals) unsubGoals();
+  unsubGoals = goalsDoc(uid).onSnapshot(
+    snap => {
+      if (snap.exists) {
+        goals = snap.data();
+        console.log("🎯 goals atualizados:", goals);
+        render();
+      }
+    },
+    err => console.error("❌ goals snapshot erro:", JSON.stringify({code: err.code, message: err.message}))
+  );
 
-  // load books
+  // real-time listener for books
   if (unsubBooks) unsubBooks();
   unsubBooks = booksCol(uid).onSnapshot(
     snap => {
@@ -737,16 +744,23 @@ async function loadData(uid) {
 
 async function persistBook(book) {
   const { id, ...data } = book;
+  console.log("💾 persistBook - editingId:", editingId);
+  console.log("💾 data keys:", Object.keys(data));
+  console.log("💾 cover size:", data.cover ? data.cover.length : 0, "chars");
+  
   try {
     if (editingId) {
+      console.log("📝 ATUALIZANDO livro:", editingId);
       await booksCol(currentUid).doc(editingId).update(data);
+      console.log("✅ livro atualizado com sucesso");
     } else {
+      console.log("➕ CRIANDO novo livro");
       data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      await booksCol(currentUid).add(data);
+      const docRef = await booksCol(currentUid).add(data);
+      console.log("✅ livro criado com ID:", docRef.id);
     }
-    console.log("✅ livro salvo");
   } catch(e) {
-    console.error("❌ persistBook:", e.code, e.message);
+    console.error("❌ persistBook ERRO:", e.code, e.message, e);
     throw e;
   }
 }
