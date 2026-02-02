@@ -454,7 +454,6 @@ try {
   firebase.initializeApp(firebaseConfig);
   auth     = firebase.auth();
   db       = firebase.firestore();
-  db.settings({ host: "firestore.southamerica-east1.googleapis.com", ssl: true });
   provider = new firebase.auth.GoogleAuthProvider();
   firebaseOk = true;
 } catch(e) {
